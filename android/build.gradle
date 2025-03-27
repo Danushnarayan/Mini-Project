@@ -1,0 +1,30 @@
+// android/build.gradle (Project-level)
+buildscript {
+    repositories {
+        google()        // Required for Firebase
+        mavenCentral()  // Required for some libraries
+    }
+    dependencies {
+        classpath 'com.google.gms:google-services:4.3.10'  // Firebase plugin
+        classpath 'com.android.tools.build:gradle:7.3.0'   // Android Gradle plugin (update if needed)
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

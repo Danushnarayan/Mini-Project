@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "631137199847",
+    "project_id": "bustrackingapp-467c9",
+    "storage_bucket": "bustrackingapp-467c9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:631137199847:android:80bfc7e5d7880a6a69e442",
+        "android_client_info": {
+          "package_name": "com.example.sample_sambhavam"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB2DDPKmw3h0DerjcPoarCyE1zGpbtWEpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
