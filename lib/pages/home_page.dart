@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class HomePage extends StatefulWidget {
   final String selectedRole;
@@ -15,6 +17,10 @@ class _HomePageState extends State<HomePage> {
   TextEditingController passwordController = TextEditingController();
 
   String? passwordError;
+  bool _isLoading = false;
+
+  // Google Apps Script Web App URL
+  final String _webAppUrl = 'https://script.google.com/macros/s/AKfycbx2le1A-fi8l7YSl-_96UOUZKeCll0D7kFANPwzuAhQpfk8IE3rhjSPelhrES4c2GNlaQ/exec';
 
   bool isValidPassword(String password) {
     final regex = RegExp(r'^[a-zA-Z0-9_]+$');
@@ -36,11 +42,59 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> login() async {
-    await saveUserData(usernameController.text.trim());
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Login successful for ${widget.selectedRole}")),
-    );
-    Navigator.pushNamed(context, '/routes'); // Navigate to the next screen
+    if (usernameController.text.isEmpty || passwordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter username and password")),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(_webAppUrl),
+        body: {
+          'action': 'login',
+          'role': widget.selectedRole,
+          'username': usernameController.text.trim(),
+          'password': passwordController.text.trim(),
+        },
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        
+        if (jsonResponse['status'] == 'success') {
+          await saveUserData(usernameController.text.trim());
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Login successful for ${widget.selectedRole}")),
+          );
+          Navigator.pushNamed(context, '/routes');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(jsonResponse['message'] ?? "Login failed")),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Network error. Please try again.")),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
   }
 
   @override
@@ -98,15 +152,17 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 10),
 
-            ElevatedButton(
-              onPressed: login,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-              child: const Text('Login'),
-            ),
+            _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                  child: const Text('Login'),
+                ),
 
             const SizedBox(height: 10),
 
@@ -133,39 +189,105 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class SignupPage extends StatelessWidget {
+class SignupPage extends StatefulWidget {
   final String selectedRole;
 
   const SignupPage({super.key, required this.selectedRole});
 
   @override
-  Widget build(BuildContext context) {
-    TextEditingController usernameController = TextEditingController();
-    TextEditingController passwordController = TextEditingController();
-    TextEditingController confirmPasswordController = TextEditingController();
+  _SignupPageState createState() => _SignupPageState();
+}
 
-    Future<void> signup() async {
-      if (passwordController.text.trim() != confirmPasswordController.text.trim()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Passwords do not match")),
-        );
-        return;
-      }
+class _SignupPageState extends State<SignupPage> {
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
 
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('username', usernameController.text.trim());
-      await prefs.setString('role', selectedRole);
+  // Google Apps Script Web App URL
+  final String _webAppUrl = 'https://script.google.com/macros/s/AKfycbx2le1A-fi8l7YSl-_96UOUZKeCll0D7kFANPwzuAhQpfk8IE3rhjSPelhrES4c2GNlaQ/exec';
+  
+  bool _isLoading = false;
 
+  Future<void> signup() async {
+    // Basic validation
+    if (usernameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Signup successful!")),
+        const SnackBar(content: Text("Username cannot be empty")),
       );
-
-      Navigator.pop(context); // Return to login page
+      return;
     }
 
+    if (passwordController.text.trim().length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password must be at least 8 characters long")),
+      );
+      return;
+    }
+
+    if (passwordController.text.trim() != confirmPasswordController.text.trim()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match")),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(_webAppUrl),
+        body: {
+          'action': 'signup',
+          'role': widget.selectedRole,
+          'username': usernameController.text.trim(),
+          'password': passwordController.text.trim(),
+        },
+      );
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        
+        if (jsonResponse['status'] == 'success') {
+          final SharedPreferences prefs = await SharedPreferences.getInstance();
+          await prefs.setString('username', usernameController.text.trim());
+          await prefs.setString('role', widget.selectedRole);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Signup successful!")),
+          );
+
+          Navigator.pop(context); // Return to login page
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(jsonResponse['message'] ?? "Signup failed")),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Network error. Please try again.")),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Signup as $selectedRole"),
+        title: Text("Signup as ${widget.selectedRole}"),
         backgroundColor: Colors.deepPurple,
       ),
       body: Padding(
@@ -202,15 +324,17 @@ class SignupPage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            ElevatedButton(
-              onPressed: signup,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 15),
-              ),
-              child: const Text('Signup'),
-            ),
+            _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: signup,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
+                  child: const Text('Signup'),
+                ),
           ],
         ),
       ),
